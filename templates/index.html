@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSM Speech Generator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CSM Speech Generator</h1>
+            <p>Generate natural-sounding speech using Apple's MLX framework</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <div class="text-input">
+                    <h2>Enter Text</h2>
+                    <textarea id="text-input" placeholder="Type or paste your text here...">Hello! This is a test of the Conversation Speech Model running on Apple Silicon with MLX.</textarea>
+                </div>
+
+                <div class="voice-settings">
+                    <h2>Voice Settings</h2>
+                    
+                    <div class="setting">
+                        <label for="speaker-select">Voice Selection</label>
+                        <select id="speaker-select">
+                            <optgroup label="Most Human-like Voices">
+                                <option value="2">Natural Male (Most Human-like)</option>
+                                <option value="4">Natural Female (Most Human-like)</option>
+                            </optgroup>
+                            <optgroup label="Clear Voices">
+                                <option value="0">Standard Neutral</option>
+                                <option value="1">Warm Voice</option>
+                                <option value="3">Bright Voice</option>
+                            </optgroup>
+                            <optgroup label="Additional Voices">
+                                <option value="5">Deeper Male</option>
+                                <option value="6">Softer Female</option>
+                                <option value="7">Energetic Voice</option>
+                                <option value="8">Calm Storyteller</option>
+                                <option value="9">Professional Presenter</option>
+                            </optgroup>
+                        </select>
+                        <small>Voices with higher numbers may vary in quality</small>
+                    </div>
+
+                    <div class="setting">
+                        <label for="temperature">Expressiveness</label>
+                        <div class="range-container">
+                            <input type="range" id="temperature" min="0.1" max="1.0" step="0.05" value="0.5">
+                            <span id="temperature-value">0.5</span>
+                        </div>
+                        <small>Higher = more natural variation, lower = more consistent</small>
+                    </div>
+
+                    <div class="setting">
+                        <label for="min-p">Voice Clarity</label>
+                        <div class="range-container">
+                            <input type="range" id="min-p" min="0.01" max="0.5" step="0.01" value="0.1">
+                            <span id="min-p-value">0.1</span>
+                        </div>
+                        <small>Higher = clearer but less expressive</small>
+                    </div>
+
+                    <div class="setting">
+                        <label for="max-duration">Max Duration (ms)</label>
+                        <input type="number" id="max-duration" min="1000" max="60000" step="1000" value="30000">
+                        <small>30000 = 30 seconds, increase for longer text</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="generate-btn" class="primary-btn">Generate Speech</button>
+            </div>
+
+            <div id="result-section" class="result-section hidden">
+                <h2>Generated Speech</h2>
+                <div class="audio-player">
+                    <audio id="audio-player" controls></audio>
+                </div>
+                <div id="audio-stats" class="audio-stats">
+                    <div class="stat">
+                        <span class="stat-label">Duration:</span>
+                        <span id="audio-duration" class="stat-value">0.00s</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Generation Time:</span>
+                        <span id="generation-time" class="stat-value">0.00s</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Real-time Factor:</span>
+                        <span id="real-time-factor" class="stat-value">0.0x</span>
+                    </div>
+                </div>
+                <div class="download-section">
+                    <a id="download-link" href="#" class="download-btn" download>Download Audio</a>
+                </div>
+            </div>
+
+            <div id="history-section" class="history-section">
+                <h2>Generation History</h2>
+                <div id="history-items" class="history-items">
+                    <!-- History items will be added here -->
+                </div>
+            </div>
+
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Generating speech...</p>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by CSM (Conversation Speech Model) with MLX for Apple Silicon</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get elements
+            const textInput = document.getElementById('text-input');
+            const speakerSelect = document.getElementById('speaker-select');
+            const temperatureSlider = document.getElementById('temperature');
+            const temperatureValue = document.getElementById('temperature-value');
+            const minPSlider = document.getElementById('min-p');
+            const minPValue = document.getElementById('min-p-value');
+            const maxDuration = document.getElementById('max-duration');
+            const generateBtn = document.getElementById('generate-btn');
+            const resultSection = document.getElementById('result-section');
+            const audioPlayer = document.getElementById('audio-player');
+            const audioDuration = document.getElementById('audio-duration');
+            const generationTime = document.getElementById('generation-time');
+            const realTimeFactor = document.getElementById('real-time-factor');
+            const downloadLink = document.getElementById('download-link');
+            const historyItems = document.getElementById('history-items');
+            const loading = document.getElementById('loading');
+            
+            // Update slider values
+            temperatureSlider.addEventListener('input', function() {
+                temperatureValue.textContent = this.value;
+            });
+            
+            minPSlider.addEventListener('input', function() {
+                minPValue.textContent = this.value;
+            });
+            
+            // Default to most human-like voice
+            speakerSelect.value = "2";
+            
+            // Generate speech
+            generateBtn.addEventListener('click', function() {
+                const text = textInput.value.trim();
+                if (!text) {
+                    alert('Please enter some text to generate speech.');
+                    return;
+                }
+                
+                // Show loading indicator
+                loading.classList.remove('hidden');
+                resultSection.classList.add('hidden');
+                
+                // Prepare form data
+                const formData = new FormData();
+                formData.append('text', text);
+                formData.append('speaker', speakerSelect.value);
+                formData.append('temperature', temperatureSlider.value);
+                formData.append('min_p', minPSlider.value);
+                formData.append('max_duration', maxDuration.value);
+                
+                // Send request
+                fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update audio player
+                        audioPlayer.src = data.audio_path;
+                        audioDuration.textContent = data.duration + 's';
+                        generationTime.textContent = data.generation_time + 's';
+                        realTimeFactor.textContent = data.real_time_factor + 'x';
+                        
+                        // Set download link to use the download path
+                        downloadLink.href = data.download_path || data.audio_path;
+                        downloadLink.download = data.filename;
+                        
+                        // Show result section
+                        resultSection.classList.remove('hidden');
+                        
+                        // Add to history with correct paths
+                        addToHistory(
+                            text, 
+                            speakerSelect.value, 
+                            data.audio_path,
+                            data.download_path || data.audio_path,
+                            speakerSelect.options[speakerSelect.selectedIndex].text
+                        );
+                    } else {
+                        alert('Error generating speech: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while generating speech.');
+                })
+                .finally(() => {
+                    // Hide loading indicator
+                    loading.classList.add('hidden');
+                });
+            });
+            
+            // Add to history
+            function addToHistory(text, speakerId, audioPath, downloadPath, speakerName) {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                
+                const truncatedText = text.length > 50 ? text.substring(0, 47) + '...' : text;
+                
+                historyItem.innerHTML = `
+                    <div class="history-text">${truncatedText}</div>
+                    <div class="history-speaker">${speakerName}</div>
+                    <div class="history-actions">
+                        <button class="play-btn">Play</button>
+                        <a href="${downloadPath}" class="download-small" download>⬇</a>
+                    </div>
+                `;
+                
+                // Add play functionality
+                const playBtn = historyItem.querySelector('.play-btn');
+                playBtn.addEventListener('click', function() {
+                    audioPlayer.src = audioPath;
+                    audioPlayer.play();
+                    resultSection.classList.remove('hidden');
+                });
+                
+                // Add to history items (insert at the beginning)
+                historyItems.insertBefore(historyItem, historyItems.firstChild);
+            }
+        });
+    </script>
+</body>
+</html>
