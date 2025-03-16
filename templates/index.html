@@ -135,7 +135,16 @@
             </div>
 
             <div id="saved-voices-section" class="saved-voices-section">
-                <h2>Saved Voices</h2>
+                <h2>Voice Presets</h2>
+                <div class="voice-section-controls">
+                    <button id="refresh-presets" class="preset-action-btn">Refresh</button>
+                    <div class="preset-controls">
+                        <label for="auto-save">
+                            <input type="checkbox" id="auto-save" checked>
+                            Auto-save successful voices
+                        </label>
+                    </div>
+                </div>
                 <div id="saved-voices" class="saved-voices">
                     <!-- Saved voices will be listed here -->
                 </div>
@@ -168,8 +177,8 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Load saved voices
-            loadSavedVoices();
+            // Load server-side voice presets
+            loadVoicePresets();
             // DOM Elements
             const textInput = document.getElementById('text-input');
             const speakerIdSelect = document.getElementById('speaker-id-select');
@@ -265,6 +274,12 @@
                     formData.append('seed', customSeedInput.value);
                 } else if (seedSelect.value) {
                     formData.append('seed', seedSelect.value);
+                }
+                
+                // Add auto-save flag if enabled
+                const autoSave = document.getElementById('auto-save');
+                if (autoSave && autoSave.checked) {
+                    formData.append('auto_save', 'true');
                 }
                 
                 // Send request with timeout
@@ -458,92 +473,156 @@
                 speedValue.textContent = voice.speed;
             }
             
-            // Load and display saved voices
-            function loadSavedVoices() {
+            // Load voice presets from server API
+            function loadVoicePresets() {
                 const savedVoicesContainer = document.getElementById('saved-voices');
                 if (!savedVoicesContainer) return;
                 
                 // Clear container
-                savedVoicesContainer.innerHTML = '';
+                savedVoicesContainer.innerHTML = '<div class="loading-presets">Loading voice presets...</div>';
                 
-                // Get saved voices from localStorage
-                const savedVoices = JSON.parse(localStorage.getItem('csm_saved_voices') || '[]');
-                
-                if (savedVoices.length === 0) {
-                    // Show message if no saved voices
-                    savedVoicesContainer.innerHTML = '<p class="no-saved-voices">No saved voices yet. Generate speech to automatically save voice settings.</p>';
-                    return;
-                }
-                
-                // Add each saved voice to the UI
-                savedVoices.forEach((voice, index) => {
-                    const voiceElement = document.createElement('div');
-                    voiceElement.className = 'voice-preset';
+                // Fetch presets from server
+                fetch('/api/presets')
+                .then(response => response.json())
+                .then(presets => {
+                    // Clear container
+                    savedVoicesContainer.innerHTML = '';
                     
-                    // Get speaker description
-                    let speakerDesc = `Speaker ${voice.speakerId}`;
-                    if (voice.speakerId == 2) speakerDesc += " (Male)";
-                    if (voice.speakerId == 4) speakerDesc += " (Female)";
-                    
-                    // Format date if available
-                    let dateDisplay = '';
-                    if (voice.timestamp) {
-                        try {
-                            const date = new Date(voice.timestamp);
-                            dateDisplay = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-                        } catch (e) {
-                            dateDisplay = '';
-                        }
+                    if (presets.length === 0) {
+                        // Show message if no presets
+                        savedVoicesContainer.innerHTML = '<p class="no-saved-voices">No voice presets yet. Generate speech with auto-save enabled to create presets.</p>';
+                        return;
                     }
                     
-                    voiceElement.innerHTML = `
-                        <div class="voice-preset-header">${voice.name}</div>
-                        <div class="voice-preset-details">
-                            <div>${speakerDesc}</div>
-                            <div class="voice-preset-info">
-                                <div>
-                                    <div class="voice-preset-label">Temp</div>
-                                    <div class="voice-preset-value">${voice.temperature}</div>
-                                </div>
-                                <div>
-                                    <div class="voice-preset-label">Min P</div>
-                                    <div class="voice-preset-value">${voice.minP}</div>
-                                </div>
-                                <div>
-                                    <div class="voice-preset-label">Speed</div>
-                                    <div class="voice-preset-value">${voice.speed}</div>
-                                </div>
-                                <div>
-                                    <div class="voice-preset-label">Seed</div>
-                                    <div class="voice-preset-value">${voice.seedValue || 'Random'}</div>
-                                </div>
-                            </div>
-                            ${dateDisplay ? `<div class="voice-preset-date">${dateDisplay}</div>` : ''}
-                        </div>
-                        <div class="voice-preset-controls">
-                            <button class="apply-voice-btn">Apply</button>
-                            <button class="delete-voice-btn">Delete</button>
-                        </div>
-                    `;
-                    
-                    // Add event handlers
-                    const applyBtn = voiceElement.querySelector('.apply-voice-btn');
-                    applyBtn.addEventListener('click', () => {
-                        applySavedVoice(voice);
-                    });
-                    
-                    const deleteBtn = voiceElement.querySelector('.delete-voice-btn');
-                    deleteBtn.addEventListener('click', () => {
-                        // Remove from localStorage
-                        const updatedVoices = savedVoices.filter((_, i) => i !== index);
-                        localStorage.setItem('csm_saved_voices', JSON.stringify(updatedVoices));
+                    // Add each preset to the UI
+                    presets.forEach(preset => {
+                        const voiceElement = document.createElement('div');
+                        voiceElement.className = 'voice-preset';
                         
-                        // Reload the UI
-                        loadSavedVoices();
+                        // Get speaker description
+                        let speakerDesc = `Speaker ${preset.speaker_id}`;
+                        if (preset.speaker_id == 2) speakerDesc += " (Male)";
+                        if (preset.speaker_id == 4) speakerDesc += " (Female)";
+                        
+                        // Format date if available
+                        let dateDisplay = '';
+                        if (preset.created_at) {
+                            try {
+                                const date = new Date(preset.created_at);
+                                dateDisplay = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                            } catch (e) {
+                                dateDisplay = '';
+                            }
+                        }
+                        
+                        voiceElement.innerHTML = `
+                            <div class="voice-preset-header">${preset.name}</div>
+                            <div class="voice-preset-details">
+                                <div>${speakerDesc}</div>
+                                <div class="voice-preset-info">
+                                    <div>
+                                        <div class="voice-preset-label">Temp</div>
+                                        <div class="voice-preset-value">${preset.temperature}</div>
+                                    </div>
+                                    <div>
+                                        <div class="voice-preset-label">Min P</div>
+                                        <div class="voice-preset-value">${preset.min_p}</div>
+                                    </div>
+                                    <div>
+                                        <div class="voice-preset-label">Speed</div>
+                                        <div class="voice-preset-value">${preset.speed || 1.0}</div>
+                                    </div>
+                                    <div>
+                                        <div class="voice-preset-label">Seed</div>
+                                        <div class="voice-preset-value">${preset.seed || 'Random'}</div>
+                                    </div>
+                                </div>
+                                ${dateDisplay ? `<div class="voice-preset-date">Created: ${dateDisplay}</div>` : ''}
+                                ${preset.description ? `<div class="voice-preset-description">${preset.description}</div>` : ''}
+                            </div>
+                            <div class="voice-preset-controls">
+                                <button class="apply-voice-btn">Apply</button>
+                                <button class="delete-voice-btn">Delete</button>
+                            </div>
+                        `;
+                        
+                        // Add event handlers
+                        const applyBtn = voiceElement.querySelector('.apply-voice-btn');
+                        applyBtn.addEventListener('click', () => {
+                            applyPreset(preset);
+                        });
+                        
+                        const deleteBtn = voiceElement.querySelector('.delete-voice-btn');
+                        deleteBtn.addEventListener('click', () => {
+                            if (confirm(`Delete preset "${preset.name}"?`)) {
+                                // Delete from server
+                                fetch(`/api/presets/${preset.id}`, {
+                                    method: 'DELETE'
+                                })
+                                .then(response => response.json())
+                                .then(result => {
+                                    if (result.message) {
+                                        // Reload presets
+                                        loadVoicePresets();
+                                    } else {
+                                        alert('Error deleting preset: ' + (result.error || 'Unknown error'));
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error deleting preset:', error);
+                                    alert('Error deleting preset');
+                                });
+                            }
+                        });
+                        
+                        savedVoicesContainer.appendChild(voiceElement);
                     });
-                    
-                    savedVoicesContainer.appendChild(voiceElement);
+                })
+                .catch(error => {
+                    console.error('Error loading presets:', error);
+                    savedVoicesContainer.innerHTML = '<p class="error-message">Error loading voice presets. Please try again.</p>';
                 });
+            }
+            
+            // Handle the refresh button
+            const refreshPresetsBtn = document.getElementById('refresh-presets');
+            if (refreshPresetsBtn) {
+                refreshPresetsBtn.addEventListener('click', loadVoicePresets);
+            }
+            
+            // Apply a server-side preset to the UI
+            function applyPreset(preset) {
+                // Apply the preset settings to the UI
+                speakerIdSelect.value = preset.speaker_id;
+                
+                // Set seed (prefer dropdown if available, otherwise custom input)
+                if (preset.seed) {
+                    // Check if seed is in the dropdown options
+                    const seedExists = [...seedSelect.options].some(opt => opt.value === preset.seed);
+                    if (seedExists) {
+                        seedSelect.value = preset.seed;
+                        customSeedInput.value = '';
+                    } else {
+                        seedSelect.value = '';
+                        customSeedInput.value = preset.seed;
+                    }
+                } else {
+                    seedSelect.value = '';
+                    customSeedInput.value = '';
+                }
+                
+                // Set other sliders
+                temperatureSlider.value = preset.temperature;
+                temperatureValue.textContent = preset.temperature;
+                
+                minPSlider.value = preset.min_p;
+                minPValue.textContent = preset.min_p;
+                
+                speedSlider.value = preset.speed || 1.0;
+                speedValue.textContent = preset.speed || 1.0;
+                
+                // Show confirmation
+                alert(`Applied preset: ${preset.name}`);
             }
         });
     </script>

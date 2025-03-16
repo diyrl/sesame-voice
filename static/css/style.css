@@ -314,6 +314,39 @@ audio::-webkit-media-controls-time-remaining-display {
     margin-bottom: 20px;
 }
 
+.voice-section-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.preset-action-btn {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.preset-controls {
+    display: flex;
+    align-items: center;
+}
+
+.preset-controls label {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    margin-left: 10px;
+}
+
+.preset-controls input[type="checkbox"] {
+    margin-right: 5px;
+}
+
 .saved-voices {
     display: flex;
     flex-wrap: wrap;

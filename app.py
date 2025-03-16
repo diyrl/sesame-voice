@@ -8,6 +8,7 @@ import time
 import numpy as np
 import torch
 import torchaudio
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
 import mlx.core as mx
 from mlx_lm.sample_utils import make_sampler
@@ -45,7 +46,7 @@ def index():
 
 @app.route('/voice_presets', methods=['GET'])
 def get_voices():
-    """Return the available voice presets"""
+    """Return the built-in voice presets"""
     presets_by_category = get_presets_by_category()
     
     # Convert to JSON-serializable format
@@ -54,6 +55,122 @@ def get_voices():
         result[category] = [preset.to_dict() for preset in presets]
     
     return jsonify(result)
+
+# New endpoints for voice preset database
+from voice_db import VoicePreset, db as voice_db
+
+@app.route('/api/presets', methods=['GET'])
+def get_all_presets():
+    """Get all saved voice presets"""
+    presets = voice_db.get_all_presets()
+    return jsonify([preset.to_dict() for preset in presets])
+
+@app.route('/api/presets/<int:preset_id>', methods=['GET'])
+def get_preset(preset_id):
+    """Get a specific preset by ID"""
+    preset = voice_db.get_preset_by_id(preset_id)
+    if not preset:
+        return jsonify({"error": "Preset not found"}), 404
+    return jsonify(preset.to_dict())
+
+@app.route('/api/presets', methods=['POST'])
+def create_preset():
+    """Create a new voice preset"""
+    data = request.json
+    
+    # Basic validation
+    required_fields = ['name', 'speaker_id', 'temperature', 'min_p']
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing required fields"}), 400
+    
+    preset = VoicePreset(
+        name=data['name'],
+        speaker_id=int(data['speaker_id']),
+        temperature=float(data['temperature']),
+        min_p=float(data['min_p']),
+        seed=data.get('seed'),
+        speed=float(data.get('speed', 1.0)),
+        description=data.get('description')
+    )
+    
+    preset_id = voice_db.create_preset(preset)
+    
+    # Check if sample audio was included
+    if 'audio_path' in data and 'text' in data:
+        voice_db.add_voice_sample(preset_id, data['audio_path'], data['text'])
+    
+    # Return the created preset with its ID
+    preset.id = preset_id
+    return jsonify(preset.to_dict()), 201
+
+@app.route('/api/presets/<int:preset_id>', methods=['PUT'])
+def update_preset(preset_id):
+    """Update an existing preset"""
+    data = request.json
+    
+    # Check if preset exists
+    existing = voice_db.get_preset_by_id(preset_id)
+    if not existing:
+        return jsonify({"error": "Preset not found"}), 404
+    
+    # Update the preset
+    preset = VoicePreset(
+        id=preset_id,
+        name=data.get('name', existing.name),
+        speaker_id=int(data.get('speaker_id', existing.speaker_id)),
+        temperature=float(data.get('temperature', existing.temperature)),
+        min_p=float(data.get('min_p', existing.min_p)),
+        seed=data.get('seed', existing.seed),
+        speed=float(data.get('speed', existing.speed)),
+        description=data.get('description', existing.description)
+    )
+    
+    success = voice_db.update_preset(preset)
+    
+    # Check if sample audio was included
+    if success and 'audio_path' in data and 'text' in data:
+        voice_db.add_voice_sample(preset_id, data['audio_path'], data['text'])
+    
+    return jsonify(preset.to_dict())
+
+@app.route('/api/presets/<int:preset_id>', methods=['DELETE'])
+def delete_preset(preset_id):
+    """Delete a voice preset"""
+    success = voice_db.delete_preset(preset_id)
+    if not success:
+        return jsonify({"error": "Preset not found"}), 404
+    return jsonify({"message": "Preset deleted successfully"})
+
+@app.route('/api/presets/<int:preset_id>/samples', methods=['GET'])
+def get_preset_samples(preset_id):
+    """Get all audio samples for a preset"""
+    # Check if preset exists
+    preset = voice_db.get_preset_by_id(preset_id)
+    if not preset:
+        return jsonify({"error": "Preset not found"}), 404
+        
+    samples = voice_db.get_voice_samples(preset_id)
+    return jsonify(samples)
+
+@app.route('/api/presets/similar', methods=['GET'])
+def find_similar_presets():
+    """Find presets with similar settings"""
+    speaker_id = request.args.get('speaker_id')
+    temperature = request.args.get('temperature')
+    min_p = request.args.get('min_p')
+    seed = request.args.get('seed')
+    
+    if not all([speaker_id, temperature, min_p]):
+        return jsonify({"error": "Missing required parameters"}), 400
+    
+    presets = voice_db.find_similar_preset(
+        speaker_id=int(speaker_id),
+        temperature=float(temperature),
+        min_p=float(min_p),
+        seed=seed
+    )
+    
+    return jsonify([preset.to_dict() for preset in presets])
 
 @app.route('/generate', methods=['POST'])
 def generate_speech():
@@ -132,7 +249,53 @@ def generate_speech():
         # Calculate audio duration
         audio_duration = len(audio) / 24000  # 24kHz sample rate
         
-        return jsonify({
+        # Auto-save this voice preset if requested
+        preset_id = None
+        if request.form.get('auto_save') == 'true':
+            # Check if similar preset exists
+            similar_presets = voice_db.find_similar_preset(
+                speaker_id=speaker,
+                temperature=temperature,
+                min_p=min_p,
+                seed=str(seed_value) if seed_value else None
+            )
+            
+            if similar_presets:
+                # Use the first similar preset
+                preset_id = similar_presets[0].id
+                
+                # Add this generation as a sample
+                voice_db.add_voice_sample(
+                    preset_id=preset_id,
+                    audio_path=web_path,
+                    text=text
+                )
+            else:
+                # Create a new preset
+                preset_name = f"Voice {speaker} (T:{temperature:.2f}, P:{min_p:.2f})"
+                if seed_value:
+                    preset_name += f", S:{seed_value}"
+                
+                preset = VoicePreset(
+                    name=preset_name,
+                    speaker_id=speaker,
+                    temperature=temperature,
+                    min_p=min_p,
+                    seed=str(seed_value) if seed_value else None,
+                    speed=1.0,
+                    description=f"Auto-saved voice from generation on {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                )
+                
+                preset_id = voice_db.create_preset(preset)
+                
+                # Add this generation as the first sample
+                voice_db.add_voice_sample(
+                    preset_id=preset_id,
+                    audio_path=web_path,
+                    text=text
+                )
+        
+        response = {
             'success': True,
             'message': 'Speech generated successfully',
             'audio_path': f"/static/audio/{web_filename}",
@@ -147,7 +310,13 @@ def generate_speech():
                 'min_p': min_p,
                 'seed': seed_value
             }
-        })
+        }
+        
+        # Add preset info if created or found
+        if preset_id:
+            response['preset_id'] = preset_id
+        
+        return jsonify(response)
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
