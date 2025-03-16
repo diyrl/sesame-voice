@@ -26,15 +26,19 @@
                     <div class="setting voice-type-selector">
                         <label>Voice Type</label>
                         <div class="voice-buttons">
-                            <button id="male-voice" class="voice-btn active">Male Voice</button>
-                            <button id="female-voice" class="voice-btn">Female Voice</button>
+                            <button id="male-voice" class="voice-btn active" data-speaker-id="2">Male Voice</button>
+                            <button id="female-voice" class="voice-btn" data-speaker-id="4">Female Voice</button>
                         </div>
+                    </div>
+
+                    <div class="setting-divider">
+                        <span>Fine Tuning</span>
                     </div>
                     
                     <div class="setting">
                         <label for="temperature">Expressiveness <span class="setting-value" id="temperature-value">0.7</span></label>
                         <div class="range-container">
-                            <input type="range" id="temperature" min="0.1" max="1.0" step="0.05" value="0.7">
+                            <input type="range" id="temperature" min="0.1" max="1.5" step="0.05" value="0.7">
                         </div>
                         <small>Higher = more natural, human-like speech with variations</small>
                     </div>
@@ -53,6 +57,27 @@
                             <input type="range" id="speech-speed" min="0.7" max="1.3" step="0.05" value="1.0">
                         </div>
                         <small>Higher = faster speech pace (post-processing)</small>
+                    </div>
+                    
+                    <div class="setting-divider">
+                        <span>Advanced Settings</span>
+                    </div>
+                    
+                    <div class="setting">
+                        <label for="random-seed">Random Seed</label>
+                        <div class="seed-container">
+                            <input type="number" id="random-seed" min="0" max="9999999" value="" placeholder="Random">
+                            <button id="generate-seed" class="small-btn">🎲</button>
+                        </div>
+                        <small>Same seed = consistent voice (leave empty for random)</small>
+                    </div>
+                    
+                    <div class="setting">
+                        <label for="speaker-id">Speaker ID <span class="setting-value" id="speaker-id-value">2</span></label>
+                        <div class="range-container">
+                            <input type="range" id="speaker-id-range" min="0" max="9" step="1" value="2">
+                        </div>
+                        <small>Model has 10 distinct voice identities (0-9)</small>
                     </div>
 
                     <div class="setting">
@@ -98,9 +123,16 @@
                 </div>
             </div>
 
+            <div id="error-message" class="error-message hidden">
+                <h3>Error</h3>
+                <p id="error-text"></p>
+                <button id="close-error" class="close-btn">Close</button>
+            </div>
+
             <div id="loading" class="loading hidden">
                 <div class="spinner"></div>
-                <p>Generating speech...</p>
+                <p style="font-size: 18px; font-weight: bold;">Generating speech...</p>
+                <p style="margin-top: 10px; font-size: 14px;">This may take a few seconds</p>
             </div>
         </main>
 
@@ -111,7 +143,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Get elements
+            // DOM Elements
             const textInput = document.getElementById('text-input');
             const maleVoiceBtn = document.getElementById('male-voice');
             const femaleVoiceBtn = document.getElementById('female-voice');
@@ -121,6 +153,10 @@
             const minPValue = document.getElementById('min-p-value');
             const speedSlider = document.getElementById('speech-speed');
             const speedValue = document.getElementById('speed-value');
+            const speakerIdRange = document.getElementById('speaker-id-range');
+            const speakerIdValue = document.getElementById('speaker-id-value');
+            const randomSeedInput = document.getElementById('random-seed');
+            const generateSeedBtn = document.getElementById('generate-seed');
             const maxDuration = document.getElementById('max-duration');
             const generateBtn = document.getElementById('generate-btn');
             const resultSection = document.getElementById('result-section');
@@ -130,22 +166,28 @@
             const realTimeFactor = document.getElementById('real-time-factor');
             const downloadLink = document.getElementById('download-link');
             const historyItems = document.getElementById('history-items');
-            const loading = document.getElementById('loading');
+            const loadingOverlay = document.getElementById('loading');
+            const errorMessage = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            const closeErrorBtn = document.getElementById('close-error');
             
-            // Default to male voice
-            let currentSpeakerId = 2;
+            // Initialize speaker ID range with the male voice selection
+            speakerIdRange.value = maleVoiceBtn.dataset.speakerId;
+            speakerIdValue.textContent = maleVoiceBtn.dataset.speakerId;
             
             // Voice button handling
             maleVoiceBtn.addEventListener('click', function() {
-                maleVoiceBtn.classList.add('active');
                 femaleVoiceBtn.classList.remove('active');
-                currentSpeakerId = 2;
+                maleVoiceBtn.classList.add('active');
+                speakerIdRange.value = maleVoiceBtn.dataset.speakerId;
+                speakerIdValue.textContent = maleVoiceBtn.dataset.speakerId;
             });
             
             femaleVoiceBtn.addEventListener('click', function() {
-                femaleVoiceBtn.classList.add('active');
                 maleVoiceBtn.classList.remove('active');
-                currentSpeakerId = 4;
+                femaleVoiceBtn.classList.add('active');
+                speakerIdRange.value = femaleVoiceBtn.dataset.speakerId;
+                speakerIdValue.textContent = femaleVoiceBtn.dataset.speakerId;
             });
             
             // Update slider values
@@ -161,6 +203,28 @@
                 speedValue.textContent = this.value;
             });
             
+            speakerIdRange.addEventListener('input', function() {
+                speakerIdValue.textContent = this.value;
+                
+                // Update voice buttons based on speaker ID
+                if (this.value === maleVoiceBtn.dataset.speakerId) {
+                    maleVoiceBtn.classList.add('active');
+                    femaleVoiceBtn.classList.remove('active');
+                } else if (this.value === femaleVoiceBtn.dataset.speakerId) {
+                    femaleVoiceBtn.classList.add('active');
+                    maleVoiceBtn.classList.remove('active');
+                } else {
+                    // Custom voice ID
+                    maleVoiceBtn.classList.remove('active');
+                    femaleVoiceBtn.classList.remove('active');
+                }
+            });
+            
+            // Generate random seed
+            generateSeedBtn.addEventListener('click', function() {
+                randomSeedInput.value = Math.floor(Math.random() * 1000000);
+            });
+            
             // Audio playback rate adjustment
             audioPlayer.addEventListener('loadedmetadata', function() {
                 audioPlayer.playbackRate = parseFloat(speedSlider.value);
@@ -173,112 +237,161 @@
                 }
             });
             
+            // Error message handling
+            closeErrorBtn.addEventListener('click', function() {
+                errorMessage.classList.add('hidden');
+            });
+            
             // Generate speech
             generateBtn.addEventListener('click', function() {
+                // Validate input
                 const text = textInput.value.trim();
                 if (!text) {
-                    alert('Please enter some text to generate speech.');
+                    showError('Please enter some text to generate speech.');
                     return;
                 }
                 
-                // Show loading indicator
-                loading.classList.remove('hidden');
+                // Show loading overlay
+                loadingOverlay.classList.remove('hidden');
                 resultSection.classList.add('hidden');
                 
                 // Prepare form data
                 const formData = new FormData();
                 formData.append('text', text);
-                formData.append('speaker', currentSpeakerId);
+                formData.append('speaker', speakerIdRange.value);
                 formData.append('temperature', temperatureSlider.value);
                 formData.append('min_p', minPSlider.value);
                 formData.append('max_duration', maxDuration.value);
                 
-                // Send request
+                if (randomSeedInput.value) {
+                    formData.append('seed', randomSeedInput.value);
+                }
+                
+                // Send request with timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+                
                 fetch('/generate', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    signal: controller.signal
                 })
-                .then(response => response.json())
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    if (!response.ok) {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    // Hide loading
+                    loadingOverlay.classList.add('hidden');
+                    
                     if (data.success) {
-                        // Update audio player
-                        audioPlayer.src = data.audio_path;
-                        // Set playback rate after the audio is loaded
-                        audioPlayer.addEventListener('loadedmetadata', function onceLoaded() {
-                            audioPlayer.playbackRate = parseFloat(speedSlider.value);
-                            audioPlayer.removeEventListener('loadedmetadata', onceLoaded);
-                        });
+                        // Add timestamp to prevent caching
+                        const timestamp = new Date().getTime();
+                        const audioPath = `${data.audio_path}?t=${timestamp}`;
                         
+                        // Update audio player
+                        audioPlayer.src = audioPath;
+                        
+                        // Update stats
                         audioDuration.textContent = data.duration + 's';
                         generationTime.textContent = data.generation_time + 's';
                         realTimeFactor.textContent = data.real_time_factor + 'x';
                         
-                        // Set download link to use the download path
-                        downloadLink.href = data.download_path || data.audio_path;
+                        // Set download link
+                        downloadLink.href = data.download_path;
                         downloadLink.download = data.filename;
                         
                         // Show result section
                         resultSection.classList.remove('hidden');
                         
-                        // Get voice name
-                        let voiceName = currentSpeakerId === 2 ? "Male Voice" : "Female Voice";
-                        voiceName += ` (T:${temperatureSlider.value}, P:${minPSlider.value}, S:${speedSlider.value})`;
-                        
                         // Add to history
-                        addToHistory(
-                            text, 
-                            currentSpeakerId, 
-                            data.audio_path,
-                            data.download_path || data.audio_path,
-                            voiceName
-                        );
+                        addToHistory(text, data);
                     } else {
-                        alert('Error generating speech: ' + data.message);
+                        showError(data.message || 'Unknown error occurred');
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while generating speech.');
-                })
-                .finally(() => {
-                    // Hide loading indicator
-                    loading.classList.add('hidden');
+                    // Hide loading
+                    loadingOverlay.classList.add('hidden');
+                    
+                    if (error.name === 'AbortError') {
+                        showError('Request timed out. The server took too long to respond.');
+                    } else {
+                        showError('Error: ' + error.message);
+                    }
+                    console.error('Error generating speech:', error);
                 });
             });
             
             // Add to history
-            function addToHistory(text, speakerId, audioPath, downloadPath, voiceName) {
+            function addToHistory(text, data) {
                 const historyItem = document.createElement('div');
                 historyItem.className = 'history-item';
                 
+                // Truncate text if needed
                 const truncatedText = text.length > 50 ? text.substring(0, 47) + '...' : text;
+                
+                // Get voice name
+                let voiceName;
+                const speakerId = data.voice_parameters.speaker;
+                
+                if (speakerId == 2) {
+                    voiceName = 'Male Voice';
+                } else if (speakerId == 4) {
+                    voiceName = 'Female Voice';
+                } else {
+                    voiceName = `Speaker ${speakerId}`;
+                }
+                
+                // Add parameters to voice name
+                const params = data.voice_parameters;
+                const seedInfo = params.seed ? ` | Seed: ${params.seed}` : '';
+                const voiceInfo = `${voiceName} | T: ${params.temperature} | P: ${params.min_p}${seedInfo}`;
                 
                 historyItem.innerHTML = `
                     <div class="history-text">${truncatedText}</div>
-                    <div class="history-speaker">${voiceName}</div>
+                    <div class="history-speaker">${voiceInfo}</div>
                     <div class="history-actions">
                         <button class="play-btn">Play</button>
-                        <a href="${downloadPath}" class="download-small" download>⬇</a>
+                        <a href="${data.download_path}" class="download-small" download>⬇</a>
                     </div>
                 `;
                 
-                // Store the current speed value
-                const currentSpeed = parseFloat(speedSlider.value);
+                // Store data in the history item
+                historyItem.dataset.audioPath = data.audio_path;
+                historyItem.dataset.speakerId = params.speaker;
+                historyItem.dataset.temperature = params.temperature;
+                historyItem.dataset.minP = params.min_p;
+                historyItem.dataset.seed = params.seed || '';
+                historyItem.dataset.speed = speedSlider.value;
                 
                 // Add play functionality
                 const playBtn = historyItem.querySelector('.play-btn');
                 playBtn.addEventListener('click', function() {
-                    audioPlayer.src = audioPath;
+                    // Add timestamp to prevent caching
+                    const timestamp = new Date().getTime();
+                    audioPlayer.src = `${historyItem.dataset.audioPath}?t=${timestamp}`;
+                    
                     audioPlayer.addEventListener('loadedmetadata', function onceLoaded() {
-                        audioPlayer.playbackRate = currentSpeed;
+                        audioPlayer.playbackRate = parseFloat(historyItem.dataset.speed);
                         audioPlayer.play();
                         audioPlayer.removeEventListener('loadedmetadata', onceLoaded);
                     });
+                    
                     resultSection.classList.remove('hidden');
                 });
                 
-                // Add to history items (insert at the beginning)
+                // Insert at the beginning of the history
                 historyItems.insertBefore(historyItem, historyItems.firstChild);
+            }
+            
+            // Show error message
+            function showError(message) {
+                errorText.textContent = message;
+                errorMessage.classList.remove('hidden');
             }
         });
     </script>

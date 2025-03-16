@@ -21,6 +21,8 @@ app = Flask(__name__)
 model = None
 output_dir = "static/audio"  # For browser playback
 downloads_dir = "outputs"    # For downloads
+
+# Create directories
 os.makedirs(output_dir, exist_ok=True)
 os.makedirs(downloads_dir, exist_ok=True)
 
@@ -56,40 +58,57 @@ def get_voices():
 @app.route('/generate', methods=['POST'])
 def generate_speech():
     """Generate speech from text"""
-    # Get parameters from request
-    text = request.form.get('text', 'Hello from CSM!')
-    
-    # We support two ways to specify the voice, but in this simplified UI,
-    # we'll only use the direct parameters
-    speaker_id = request.form.get('speaker', '0')
-    # Convert speaker ID to integer but limit to 0-9 range
     try:
-        speaker = int(speaker_id) % 10  # Enforce range 0-9
-    except ValueError:
-        speaker = 0
-    
-    temperature = float(request.form.get('temperature', 0.7))
-    min_p = float(request.form.get('min_p', 0.05))
-    max_duration = int(request.form.get('max_duration', 30000))  # Default to 30 seconds
-    
-    # Generate unique filenames
-    timestamp = int(time.time())
-    web_filename = f"speech_{timestamp}_speaker_{speaker}.wav"
-    download_filename = f"speech_{timestamp}_speaker_{speaker}.wav"
-    
-    web_path = os.path.join(output_dir, web_filename)
-    download_path = os.path.join(downloads_dir, download_filename)
-    
-    # Get the model
-    csm = get_model()
-    
-    # Ensure text ends with punctuation for better speech quality
-    if text and not text[-1] in ['.', '!', '?', ',', ';', ':', '-']:
-        text += '.'
-    
-    # Generate audio - always use max allowed length to ensure full text is generated
-    start_time = time.time()
-    try:
+        # Get parameters from request
+        text = request.form.get('text', 'Hello from CSM!')
+        speaker_id = request.form.get('speaker', '0')
+        
+        # Convert speaker ID to integer but limit to 0-9 range
+        try:
+            speaker = int(speaker_id) % 10  # Enforce range 0-9
+        except ValueError:
+            speaker = 0
+        
+        temperature = float(request.form.get('temperature', 0.7))
+        min_p = float(request.form.get('min_p', 0.05))
+        max_duration = int(request.form.get('max_duration', 30000))  # Default to 30 seconds
+        
+        # Get random seed if provided to ensure consistent results
+        seed = request.form.get('seed')
+        seed_value = None
+        
+        if seed:
+            try:
+                seed_value = int(seed)
+                # Set random seed for consistent generation
+                mx.random.seed(seed_value)
+                print(f"Using seed: {seed_value}")
+            except ValueError:
+                print(f"Invalid seed provided: {seed}, using random seed")
+        else:
+            # If no seed provided, let's generate a random one for reproducibility
+            seed_value = int(time.time()) % 1000000
+            mx.random.seed(seed_value)
+            print(f"No seed provided, using random seed: {seed_value}")
+        
+        # Generate unique filenames
+        timestamp = int(time.time())
+        web_filename = f"speech_{timestamp}_speaker_{speaker}.wav"
+        download_filename = f"speech_{timestamp}_speaker_{speaker}.wav"
+        
+        web_path = os.path.join(output_dir, web_filename)
+        download_path = os.path.join(downloads_dir, download_filename)
+        
+        # Get the model
+        csm = get_model()
+        
+        # Ensure text ends with punctuation for better speech quality
+        if text and not text[-1] in ['.', '!', '?', ',', ';', ':', '-']:
+            text += '.'
+        
+        # Generate audio - always use max allowed length to ensure full text is generated
+        start_time = time.time()
+        
         audio = generate(
             csm,
             text=text,
@@ -98,6 +117,7 @@ def generate_speech():
             max_audio_length_ms=max_duration,
             sampler=make_sampler(temp=temperature, min_p=min_p),
         )
+        
         generation_time = time.time() - start_time
         
         # Convert to numpy and save
@@ -125,13 +145,19 @@ def generate_speech():
                 'speaker': speaker,
                 'temperature': temperature,
                 'min_p': min_p,
+                'seed': seed_value
             }
         })
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error generating speech: {str(e)}")
+        print(f"Traceback: {error_traceback}")
         return jsonify({
             'success': False,
             'message': f"Error generating speech: {str(e)}",
-        })
+            'error_details': error_traceback
+        }), 500  # Return 500 status to clearly indicate server error
 
 @app.route('/static/audio/<filename>')
 def serve_audio(filename):
