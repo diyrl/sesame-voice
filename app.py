@@ -13,6 +13,7 @@ import mlx.core as mx
 from mlx_lm.sample_utils import make_sampler
 from huggingface_hub import hf_hub_download
 from csm_mlx import CSM, csm_1b, generate, Segment
+from csm_mlx.voice_presets import get_presets_by_category, get_preset_by_name, BASIC_VOICES
 
 app = Flask(__name__)
 
@@ -40,22 +41,35 @@ def index():
     """Render the main page"""
     return render_template('index.html')
 
+@app.route('/voice_presets', methods=['GET'])
+def get_voices():
+    """Return the available voice presets"""
+    presets_by_category = get_presets_by_category()
+    
+    # Convert to JSON-serializable format
+    result = {}
+    for category, presets in presets_by_category.items():
+        result[category] = [preset.to_dict() for preset in presets]
+    
+    return jsonify(result)
+
 @app.route('/generate', methods=['POST'])
 def generate_speech():
     """Generate speech from text"""
     # Get parameters from request
     text = request.form.get('text', 'Hello from CSM!')
-    speaker_id = request.form.get('speaker', '0')
     
+    # We support two ways to specify the voice, but in this simplified UI,
+    # we'll only use the direct parameters
+    speaker_id = request.form.get('speaker', '0')
     # Convert speaker ID to integer but limit to 0-9 range
-    # This ensures compatibility with the CSM model
     try:
         speaker = int(speaker_id) % 10  # Enforce range 0-9
     except ValueError:
         speaker = 0
     
-    temperature = float(request.form.get('temperature', 0.5))
-    min_p = float(request.form.get('min_p', 0.1))
+    temperature = float(request.form.get('temperature', 0.7))
+    min_p = float(request.form.get('min_p', 0.05))
     max_duration = int(request.form.get('max_duration', 30000))  # Default to 30 seconds
     
     # Generate unique filenames
@@ -106,7 +120,12 @@ def generate_speech():
             'filename': download_filename,
             'duration': f"{audio_duration:.2f}",
             'generation_time': f"{generation_time:.2f}",
-            'real_time_factor': f"{generation_time / audio_duration:.2f}" if audio_duration > 0 else "0.0"
+            'real_time_factor': f"{generation_time / audio_duration:.2f}" if audio_duration > 0 else "0.0",
+            'voice_parameters': {
+                'speaker': speaker,
+                'temperature': temperature,
+                'min_p': min_p,
+            }
         })
     except Exception as e:
         return jsonify({

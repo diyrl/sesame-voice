@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Run CSM Web Interface
+# Run CSM Speech Generator
 
-# Kill any existing Python server processes if running
+# Stop any existing server
 echo "Stopping any existing server processes..."
-pkill -f "python app.py" >/dev/null 2>&1
+pkill -f "python app.py" 2>/dev/null || true
 
 # Set environment variable to avoid Matplotlib error on Mac
 export MPLBACKEND=Agg
@@ -21,7 +21,7 @@ if ! python -c "import flask" &> /dev/null; then
 fi
 
 # Make the static directory if it doesn't exist
-mkdir -p static/audio
+mkdir -p static/audio outputs
 
 # Get local IP address for easier access from other devices
 if command -v ipconfig &> /dev/null; then

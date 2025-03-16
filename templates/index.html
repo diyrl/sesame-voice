@@ -23,45 +23,36 @@
                 <div class="voice-settings">
                     <h2>Voice Settings</h2>
                     
+                    <div class="setting voice-type-selector">
+                        <label>Voice Type</label>
+                        <div class="voice-buttons">
+                            <button id="male-voice" class="voice-btn active">Male Voice</button>
+                            <button id="female-voice" class="voice-btn">Female Voice</button>
+                        </div>
+                    </div>
+                    
                     <div class="setting">
-                        <label for="speaker-select">Voice Selection</label>
-                        <select id="speaker-select">
-                            <optgroup label="Most Human-like Voices">
-                                <option value="2">Natural Male (Most Human-like)</option>
-                                <option value="4">Natural Female (Most Human-like)</option>
-                            </optgroup>
-                            <optgroup label="Clear Voices">
-                                <option value="0">Standard Neutral</option>
-                                <option value="1">Warm Voice</option>
-                                <option value="3">Bright Voice</option>
-                            </optgroup>
-                            <optgroup label="Additional Voices">
-                                <option value="5">Deeper Male</option>
-                                <option value="6">Softer Female</option>
-                                <option value="7">Energetic Voice</option>
-                                <option value="8">Calm Storyteller</option>
-                                <option value="9">Professional Presenter</option>
-                            </optgroup>
-                        </select>
-                        <small>Voices with higher numbers may vary in quality</small>
+                        <label for="temperature">Expressiveness <span class="setting-value" id="temperature-value">0.7</span></label>
+                        <div class="range-container">
+                            <input type="range" id="temperature" min="0.1" max="1.0" step="0.05" value="0.7">
+                        </div>
+                        <small>Higher = more natural, human-like speech with variations</small>
                     </div>
 
                     <div class="setting">
-                        <label for="temperature">Expressiveness</label>
+                        <label for="min-p">Speech Clarity <span class="setting-value" id="min-p-value">0.05</span></label>
                         <div class="range-container">
-                            <input type="range" id="temperature" min="0.1" max="1.0" step="0.05" value="0.5">
-                            <span id="temperature-value">0.5</span>
+                            <input type="range" id="min-p" min="0.01" max="0.2" step="0.01" value="0.05">
                         </div>
-                        <small>Higher = more natural variation, lower = more consistent</small>
+                        <small>Lower = more expressive, natural-sounding speech</small>
                     </div>
 
                     <div class="setting">
-                        <label for="min-p">Voice Clarity</label>
+                        <label for="speech-speed">Speech Speed <span class="setting-value" id="speed-value">1.0</span></label>
                         <div class="range-container">
-                            <input type="range" id="min-p" min="0.01" max="0.5" step="0.01" value="0.1">
-                            <span id="min-p-value">0.1</span>
+                            <input type="range" id="speech-speed" min="0.7" max="1.3" step="0.05" value="1.0">
                         </div>
-                        <small>Higher = clearer but less expressive</small>
+                        <small>Higher = faster speech pace (post-processing)</small>
                     </div>
 
                     <div class="setting">
@@ -122,11 +113,14 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Get elements
             const textInput = document.getElementById('text-input');
-            const speakerSelect = document.getElementById('speaker-select');
+            const maleVoiceBtn = document.getElementById('male-voice');
+            const femaleVoiceBtn = document.getElementById('female-voice');
             const temperatureSlider = document.getElementById('temperature');
             const temperatureValue = document.getElementById('temperature-value');
             const minPSlider = document.getElementById('min-p');
             const minPValue = document.getElementById('min-p-value');
+            const speedSlider = document.getElementById('speech-speed');
+            const speedValue = document.getElementById('speed-value');
             const maxDuration = document.getElementById('max-duration');
             const generateBtn = document.getElementById('generate-btn');
             const resultSection = document.getElementById('result-section');
@@ -138,6 +132,22 @@
             const historyItems = document.getElementById('history-items');
             const loading = document.getElementById('loading');
             
+            // Default to male voice
+            let currentSpeakerId = 2;
+            
+            // Voice button handling
+            maleVoiceBtn.addEventListener('click', function() {
+                maleVoiceBtn.classList.add('active');
+                femaleVoiceBtn.classList.remove('active');
+                currentSpeakerId = 2;
+            });
+            
+            femaleVoiceBtn.addEventListener('click', function() {
+                femaleVoiceBtn.classList.add('active');
+                maleVoiceBtn.classList.remove('active');
+                currentSpeakerId = 4;
+            });
+            
             // Update slider values
             temperatureSlider.addEventListener('input', function() {
                 temperatureValue.textContent = this.value;
@@ -147,8 +157,21 @@
                 minPValue.textContent = this.value;
             });
             
-            // Default to most human-like voice
-            speakerSelect.value = "2";
+            speedSlider.addEventListener('input', function() {
+                speedValue.textContent = this.value;
+            });
+            
+            // Audio playback rate adjustment
+            audioPlayer.addEventListener('loadedmetadata', function() {
+                audioPlayer.playbackRate = parseFloat(speedSlider.value);
+            });
+            
+            // Speed change affects playback rate
+            speedSlider.addEventListener('change', function() {
+                if (audioPlayer.src) {
+                    audioPlayer.playbackRate = parseFloat(this.value);
+                }
+            });
             
             // Generate speech
             generateBtn.addEventListener('click', function() {
@@ -165,7 +188,7 @@
                 // Prepare form data
                 const formData = new FormData();
                 formData.append('text', text);
-                formData.append('speaker', speakerSelect.value);
+                formData.append('speaker', currentSpeakerId);
                 formData.append('temperature', temperatureSlider.value);
                 formData.append('min_p', minPSlider.value);
                 formData.append('max_duration', maxDuration.value);
@@ -180,6 +203,12 @@
                     if (data.success) {
                         // Update audio player
                         audioPlayer.src = data.audio_path;
+                        // Set playback rate after the audio is loaded
+                        audioPlayer.addEventListener('loadedmetadata', function onceLoaded() {
+                            audioPlayer.playbackRate = parseFloat(speedSlider.value);
+                            audioPlayer.removeEventListener('loadedmetadata', onceLoaded);
+                        });
+                        
                         audioDuration.textContent = data.duration + 's';
                         generationTime.textContent = data.generation_time + 's';
                         realTimeFactor.textContent = data.real_time_factor + 'x';
@@ -191,13 +220,17 @@
                         // Show result section
                         resultSection.classList.remove('hidden');
                         
-                        // Add to history with correct paths
+                        // Get voice name
+                        let voiceName = currentSpeakerId === 2 ? "Male Voice" : "Female Voice";
+                        voiceName += ` (T:${temperatureSlider.value}, P:${minPSlider.value}, S:${speedSlider.value})`;
+                        
+                        // Add to history
                         addToHistory(
                             text, 
-                            speakerSelect.value, 
+                            currentSpeakerId, 
                             data.audio_path,
                             data.download_path || data.audio_path,
-                            speakerSelect.options[speakerSelect.selectedIndex].text
+                            voiceName
                         );
                     } else {
                         alert('Error generating speech: ' + data.message);
@@ -214,7 +247,7 @@
             });
             
             // Add to history
-            function addToHistory(text, speakerId, audioPath, downloadPath, speakerName) {
+            function addToHistory(text, speakerId, audioPath, downloadPath, voiceName) {
                 const historyItem = document.createElement('div');
                 historyItem.className = 'history-item';
                 
@@ -222,18 +255,25 @@
                 
                 historyItem.innerHTML = `
                     <div class="history-text">${truncatedText}</div>
-                    <div class="history-speaker">${speakerName}</div>
+                    <div class="history-speaker">${voiceName}</div>
                     <div class="history-actions">
                         <button class="play-btn">Play</button>
                         <a href="${downloadPath}" class="download-small" download>⬇</a>
                     </div>
                 `;
                 
+                // Store the current speed value
+                const currentSpeed = parseFloat(speedSlider.value);
+                
                 // Add play functionality
                 const playBtn = historyItem.querySelector('.play-btn');
                 playBtn.addEventListener('click', function() {
                     audioPlayer.src = audioPath;
-                    audioPlayer.play();
+                    audioPlayer.addEventListener('loadedmetadata', function onceLoaded() {
+                        audioPlayer.playbackRate = currentSpeed;
+                        audioPlayer.play();
+                        audioPlayer.removeEventListener('loadedmetadata', onceLoaded);
+                    });
                     resultSection.classList.remove('hidden');
                 });
                 
