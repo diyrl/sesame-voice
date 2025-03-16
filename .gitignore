@@ -70,4 +70,5 @@ __pycache__
 *.ntvs*
 *.njsproj
 *.sln
-*.sw*CLAUDE.md
+*.sw*
+CLAUDE.md
