@@ -23,12 +23,21 @@
                 <div class="voice-settings">
                     <h2>Voice Settings</h2>
                     
-                    <div class="setting voice-type-selector">
-                        <label>Voice Type</label>
-                        <div class="voice-buttons">
-                            <button id="male-voice" class="voice-btn active" data-speaker-id="2">Male Voice</button>
-                            <button id="female-voice" class="voice-btn" data-speaker-id="4">Female Voice</button>
-                        </div>
+                    <div class="setting">
+                        <label for="speaker-id-select">Speaker ID</label>
+                        <select id="speaker-id-select" class="dropdown">
+                            <option value="0">Speaker 0 (Default)</option>
+                            <option value="1">Speaker 1</option>
+                            <option value="2" selected>Speaker 2 (Male)</option>
+                            <option value="3">Speaker 3</option>
+                            <option value="4">Speaker 4 (Female)</option>
+                            <option value="5">Speaker 5</option>
+                            <option value="6">Speaker 6</option>
+                            <option value="7">Speaker 7</option>
+                            <option value="8">Speaker 8</option>
+                            <option value="9">Speaker 9</option>
+                        </select>
+                        <small>Each speaker ID has unique voice characteristics</small>
                     </div>
 
                     <div class="setting-divider">
@@ -64,21 +73,30 @@
                     </div>
                     
                     <div class="setting">
-                        <label for="random-seed">Random Seed</label>
-                        <div class="seed-container">
-                            <input type="number" id="random-seed" min="0" max="9999999" value="" placeholder="Random">
-                            <button id="generate-seed" class="small-btn">🎲</button>
-                        </div>
-                        <small>Same seed = consistent voice (leave empty for random)</small>
+                        <label for="seed-select">Seed Value</label>
+                        <select id="seed-select" class="dropdown">
+                            <option value="">Random (changes each time)</option>
+                            <option value="123456">Seed 123456</option>
+                            <option value="78910">Seed 78910</option>
+                            <option value="24680">Seed 24680</option>
+                            <option value="13579">Seed 13579</option>
+                            <option value="987654">Seed 987654</option>
+                            <option value="555555">Seed 555555</option>
+                            <option value="111111">Seed 111111</option>
+                            <option value="222222">Seed 222222</option>
+                            <option value="333333">Seed 333333</option>
+                            <option value="444444">Seed 444444</option>
+                            <option value="12345">Seed 12345</option>
+                        </select>
+                        <small>Same seed = consistent voice generation</small>
                     </div>
                     
                     <div class="setting">
-                        <label for="speaker-id">Speaker ID <span class="setting-value" id="speaker-id-value">2</span></label>
-                        <div class="range-container">
-                            <input type="range" id="speaker-id-range" min="0" max="9" step="1" value="2">
-                        </div>
-                        <small>Model has 10 distinct voice identities (0-9)</small>
+                        <label for="custom-seed">Custom Seed</label>
+                        <input type="number" id="custom-seed" min="0" max="9999999" value="" placeholder="Enter custom seed">
+                        <small>Enter your own seed value (overrides selection above)</small>
                     </div>
+                    
 
                     <div class="setting">
                         <label for="max-duration">Max Duration (ms)</label>
@@ -116,6 +134,13 @@
                 </div>
             </div>
 
+            <div id="saved-voices-section" class="saved-voices-section">
+                <h2>Saved Voices</h2>
+                <div id="saved-voices" class="saved-voices">
+                    <!-- Saved voices will be listed here -->
+                </div>
+            </div>
+            
             <div id="history-section" class="history-section">
                 <h2>Generation History</h2>
                 <div id="history-items" class="history-items">
@@ -143,20 +168,19 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Load saved voices
+            loadSavedVoices();
             // DOM Elements
             const textInput = document.getElementById('text-input');
-            const maleVoiceBtn = document.getElementById('male-voice');
-            const femaleVoiceBtn = document.getElementById('female-voice');
+            const speakerIdSelect = document.getElementById('speaker-id-select');
+            const seedSelect = document.getElementById('seed-select');
+            const customSeedInput = document.getElementById('custom-seed');
             const temperatureSlider = document.getElementById('temperature');
             const temperatureValue = document.getElementById('temperature-value');
             const minPSlider = document.getElementById('min-p');
             const minPValue = document.getElementById('min-p-value');
             const speedSlider = document.getElementById('speech-speed');
             const speedValue = document.getElementById('speed-value');
-            const speakerIdRange = document.getElementById('speaker-id-range');
-            const speakerIdValue = document.getElementById('speaker-id-value');
-            const randomSeedInput = document.getElementById('random-seed');
-            const generateSeedBtn = document.getElementById('generate-seed');
             const maxDuration = document.getElementById('max-duration');
             const generateBtn = document.getElementById('generate-btn');
             const resultSection = document.getElementById('result-section');
@@ -171,25 +195,6 @@
             const errorText = document.getElementById('error-text');
             const closeErrorBtn = document.getElementById('close-error');
             
-            // Initialize speaker ID range with the male voice selection
-            speakerIdRange.value = maleVoiceBtn.dataset.speakerId;
-            speakerIdValue.textContent = maleVoiceBtn.dataset.speakerId;
-            
-            // Voice button handling
-            maleVoiceBtn.addEventListener('click', function() {
-                femaleVoiceBtn.classList.remove('active');
-                maleVoiceBtn.classList.add('active');
-                speakerIdRange.value = maleVoiceBtn.dataset.speakerId;
-                speakerIdValue.textContent = maleVoiceBtn.dataset.speakerId;
-            });
-            
-            femaleVoiceBtn.addEventListener('click', function() {
-                maleVoiceBtn.classList.remove('active');
-                femaleVoiceBtn.classList.add('active');
-                speakerIdRange.value = femaleVoiceBtn.dataset.speakerId;
-                speakerIdValue.textContent = femaleVoiceBtn.dataset.speakerId;
-            });
-            
             // Update slider values
             temperatureSlider.addEventListener('input', function() {
                 temperatureValue.textContent = this.value;
@@ -203,26 +208,18 @@
                 speedValue.textContent = this.value;
             });
             
-            speakerIdRange.addEventListener('input', function() {
-                speakerIdValue.textContent = this.value;
-                
-                // Update voice buttons based on speaker ID
-                if (this.value === maleVoiceBtn.dataset.speakerId) {
-                    maleVoiceBtn.classList.add('active');
-                    femaleVoiceBtn.classList.remove('active');
-                } else if (this.value === femaleVoiceBtn.dataset.speakerId) {
-                    femaleVoiceBtn.classList.add('active');
-                    maleVoiceBtn.classList.remove('active');
-                } else {
-                    // Custom voice ID
-                    maleVoiceBtn.classList.remove('active');
-                    femaleVoiceBtn.classList.remove('active');
+            // Seed selection logic - clear custom seed when dropdown is used
+            seedSelect.addEventListener('change', function() {
+                if (this.value) {
+                    customSeedInput.value = '';
                 }
             });
             
-            // Generate random seed
-            generateSeedBtn.addEventListener('click', function() {
-                randomSeedInput.value = Math.floor(Math.random() * 1000000);
+            // Custom seed input - reset dropdown when custom seed is entered
+            customSeedInput.addEventListener('input', function() {
+                if (this.value) {
+                    seedSelect.value = '';
+                }
             });
             
             // Audio playback rate adjustment
@@ -258,13 +255,16 @@
                 // Prepare form data
                 const formData = new FormData();
                 formData.append('text', text);
-                formData.append('speaker', speakerIdRange.value);
+                formData.append('speaker', speakerIdSelect.value);
                 formData.append('temperature', temperatureSlider.value);
                 formData.append('min_p', minPSlider.value);
                 formData.append('max_duration', maxDuration.value);
                 
-                if (randomSeedInput.value) {
-                    formData.append('seed', randomSeedInput.value);
+                // Use custom seed if provided, otherwise use selected seed
+                if (customSeedInput.value) {
+                    formData.append('seed', customSeedInput.value);
+                } else if (seedSelect.value) {
+                    formData.append('seed', seedSelect.value);
                 }
                 
                 // Send request with timeout
@@ -309,6 +309,15 @@
                         
                         // Add to history
                         addToHistory(text, data);
+                        
+                        // Save the successful settings to localStorage
+                        saveVoiceSettings({
+                            speakerId: speakerIdSelect.value,
+                            seedValue: customSeedInput.value || seedSelect.value || data.voice_parameters.seed,
+                            temperature: temperatureSlider.value,
+                            minP: minPSlider.value,
+                            speed: speedSlider.value
+                        });
                     } else {
                         showError(data.message || 'Unknown error occurred');
                     }
@@ -392,6 +401,149 @@
             function showError(message) {
                 errorText.textContent = message;
                 errorMessage.classList.remove('hidden');
+            }
+            
+            // Save voice settings to localStorage
+            function saveVoiceSettings(settings) {
+                // Generate a name for the voice based on parameters
+                const speakerId = settings.speakerId;
+                const voiceName = `Voice ${speakerId} (T:${settings.temperature}, P:${settings.minP})`;
+                
+                // Create a voice preset entry
+                const preset = {
+                    name: voiceName,
+                    speakerId: settings.speakerId,
+                    seedValue: settings.seedValue,
+                    temperature: settings.temperature,
+                    minP: settings.minP,
+                    speed: settings.speed,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Get existing saved voices or create empty array
+                let savedVoices = JSON.parse(localStorage.getItem('csm_saved_voices') || '[]');
+                
+                // Add the new preset and save back to localStorage
+                savedVoices.push(preset);
+                
+                // Keep only the most recent 20 saved voices
+                if (savedVoices.length > 20) {
+                    savedVoices = savedVoices.slice(savedVoices.length - 20);
+                }
+                
+                localStorage.setItem('csm_saved_voices', JSON.stringify(savedVoices));
+                console.log('Voice settings saved:', preset);
+            }
+            
+            // Apply saved voice settings to the UI
+            function applySavedVoice(voice) {
+                speakerIdSelect.value = voice.speakerId;
+                
+                // Set seed (prefer dropdown if available, otherwise custom input)
+                if (voice.seedValue && [...seedSelect.options].some(opt => opt.value === voice.seedValue)) {
+                    seedSelect.value = voice.seedValue;
+                    customSeedInput.value = '';
+                } else if (voice.seedValue) {
+                    seedSelect.value = '';
+                    customSeedInput.value = voice.seedValue;
+                }
+                
+                temperatureSlider.value = voice.temperature;
+                temperatureValue.textContent = voice.temperature;
+                
+                minPSlider.value = voice.minP;
+                minPValue.textContent = voice.minP;
+                
+                speedSlider.value = voice.speed;
+                speedValue.textContent = voice.speed;
+            }
+            
+            // Load and display saved voices
+            function loadSavedVoices() {
+                const savedVoicesContainer = document.getElementById('saved-voices');
+                if (!savedVoicesContainer) return;
+                
+                // Clear container
+                savedVoicesContainer.innerHTML = '';
+                
+                // Get saved voices from localStorage
+                const savedVoices = JSON.parse(localStorage.getItem('csm_saved_voices') || '[]');
+                
+                if (savedVoices.length === 0) {
+                    // Show message if no saved voices
+                    savedVoicesContainer.innerHTML = '<p class="no-saved-voices">No saved voices yet. Generate speech to automatically save voice settings.</p>';
+                    return;
+                }
+                
+                // Add each saved voice to the UI
+                savedVoices.forEach((voice, index) => {
+                    const voiceElement = document.createElement('div');
+                    voiceElement.className = 'voice-preset';
+                    
+                    // Get speaker description
+                    let speakerDesc = `Speaker ${voice.speakerId}`;
+                    if (voice.speakerId == 2) speakerDesc += " (Male)";
+                    if (voice.speakerId == 4) speakerDesc += " (Female)";
+                    
+                    // Format date if available
+                    let dateDisplay = '';
+                    if (voice.timestamp) {
+                        try {
+                            const date = new Date(voice.timestamp);
+                            dateDisplay = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                        } catch (e) {
+                            dateDisplay = '';
+                        }
+                    }
+                    
+                    voiceElement.innerHTML = `
+                        <div class="voice-preset-header">${voice.name}</div>
+                        <div class="voice-preset-details">
+                            <div>${speakerDesc}</div>
+                            <div class="voice-preset-info">
+                                <div>
+                                    <div class="voice-preset-label">Temp</div>
+                                    <div class="voice-preset-value">${voice.temperature}</div>
+                                </div>
+                                <div>
+                                    <div class="voice-preset-label">Min P</div>
+                                    <div class="voice-preset-value">${voice.minP}</div>
+                                </div>
+                                <div>
+                                    <div class="voice-preset-label">Speed</div>
+                                    <div class="voice-preset-value">${voice.speed}</div>
+                                </div>
+                                <div>
+                                    <div class="voice-preset-label">Seed</div>
+                                    <div class="voice-preset-value">${voice.seedValue || 'Random'}</div>
+                                </div>
+                            </div>
+                            ${dateDisplay ? `<div class="voice-preset-date">${dateDisplay}</div>` : ''}
+                        </div>
+                        <div class="voice-preset-controls">
+                            <button class="apply-voice-btn">Apply</button>
+                            <button class="delete-voice-btn">Delete</button>
+                        </div>
+                    `;
+                    
+                    // Add event handlers
+                    const applyBtn = voiceElement.querySelector('.apply-voice-btn');
+                    applyBtn.addEventListener('click', () => {
+                        applySavedVoice(voice);
+                    });
+                    
+                    const deleteBtn = voiceElement.querySelector('.delete-voice-btn');
+                    deleteBtn.addEventListener('click', () => {
+                        // Remove from localStorage
+                        const updatedVoices = savedVoices.filter((_, i) => i !== index);
+                        localStorage.setItem('csm_saved_voices', JSON.stringify(updatedVoices));
+                        
+                        // Reload the UI
+                        loadSavedVoices();
+                    });
+                    
+                    savedVoicesContainer.appendChild(voiceElement);
+                });
             }
         });
     </script>

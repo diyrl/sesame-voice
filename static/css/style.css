@@ -143,6 +143,17 @@ select, input[type="number"] {
     background-color: white;
 }
 
+.dropdown {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    appearance: auto;
+    background-color: white;
+    cursor: pointer;
+}
+
 .range-container {
     display: flex;
     align-items: center;
@@ -296,6 +307,85 @@ audio::-webkit-media-controls-time-remaining-display {
 
 .download-small:hover {
     background-color: #333333;
+}
+
+/* Saved Voices section */
+.saved-voices-section {
+    margin-bottom: 20px;
+}
+
+.saved-voices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.voice-preset {
+    background-color: var(--light-color);
+    border-radius: var(--border-radius);
+    padding: 12px;
+    flex: 1;
+    min-width: 250px;
+    max-width: calc(33% - 10px);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.voice-preset-header {
+    font-weight: bold;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.voice-preset-details {
+    font-size: 12px;
+    color: var(--secondary-color);
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+
+.voice-preset-info {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.voice-preset-label {
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--secondary-color);
+}
+
+.voice-preset-value {
+    font-size: 11px;
+}
+
+.voice-preset-controls {
+    display: flex;
+    gap: 5px;
+    justify-content: flex-end;
+}
+
+.apply-voice-btn {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.delete-voice-btn {
+    background-color: #777;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 12px;
 }
 
 /* History section */

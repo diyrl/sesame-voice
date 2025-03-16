@@ -1,112 +1,70 @@
 # CSM Speech Generator
 
-A elegant web interface for generating human-like speech using the Conversation Speech Model (CSM) on Apple Silicon.
+A web interface for generating customizable human-like speech using the Conversation Speech Model (CSM) on Apple Silicon.
 
-## Overview
+## Quick Start
 
-This application provides a clean, user-friendly interface for the CSM speech synthesis model. It allows you to generate natural-sounding speech directly in your browser, with controls for different voice types, expressiveness, and other parameters.
+```bash
+# Clone repo
+git clone https://github.com/yourusername/csm-mlx.git
+cd csm-mlx
 
-## Acknowledgements
+# Install dependencies
+pip install git+https://github.com/senstella/csm-mlx
+pip install torch torchaudio numpy flask
 
-This project builds upon:
+# Start server
+python app.py
+```
 
-- [csm-mlx](https://github.com/senstella/csm-mlx) - CSM implementation for Apple Silicon using MLX
-- [Sesame](https://sesame.com) - Original PyTorch implementation and weights
-- [torchtune](https://github.com/pytorch/torchtune) project - Providing LLaMA attention implementation
-- [MLX](https://github.com/ml-explore/mlx) project - The framework that made this implementation possible
+Visit http://localhost:8080 in your browser
+
+## Voice Creation Guide
+
+### Understanding Parameters
+
+| Parameter      | Effect                                       | Range       | For Deeper, Calmer Voice |
+|----------------|----------------------------------------------|-------------|--------------------------|
+| Speaker ID     | Base voice identity                          | 0-9         | 4 (Female)               |
+| Seed           | Makes voice consistent between generations   | Any integer | Try 123456, 555555       |
+| Expressiveness | Controls voice variation                     | 0.1-1.5     | 0.3-0.5 (lower = calmer) |
+| Speech Clarity | Controls token filtering                     | 0.01-0.2    | 0.08-0.12 (higher)       |
+| Speech Speed   | Controls playback rate                       | 0.7-1.3     | 0.8-0.9 (slower)         |
+
+### Creating Unique Voices
+
+1. **Select Speaker ID**: Start with ID 4 for female voice
+2. **Choose a Seed**: Seed ensures voice consistency
+3. **Adjust Expressiveness**: Lower for calmer voice
+4. **Set Clarity**: Higher for clearer articulation
+5. **Generate**: Test with the same text sample
+6. **Save**: Voice settings are automatically saved
+
+### Voice Combinations
+
+For a deeper, calmer female voice, try:
+- Speaker ID 4 + Seed 555555 + Expressiveness 0.4 + Clarity 0.1
+- Speaker ID 4 + Seed 123456 + Expressiveness 0.3 + Clarity 0.12
+
+For different voice characteristics:
+- Warm Voice: Speaker ID 3 + Expressiveness 0.7 + Clarity 0.03
+- Clear Voice: Speaker ID 2 + Expressiveness 0.5 + Clarity 0.15
+- Expressive Voice: Speaker ID 6 + Expressiveness 0.9 + Clarity 0.05
 
 ## Features
 
-- **Clean, minimal interface** with a black and white design
-- **Multiple voice options** with clearly labeled human-like voices
-- **Adjustable parameters** for fine-tuning speech generation:
-  - Expressiveness (temperature)
-  - Voice clarity
-  - Maximum duration
-- **Audio playback** directly in the browser
-- **Download generated audio** files
-- **History of generated speech** for easy reference
-- **Fully local processing** - your data never leaves your computer
+- **10 Voice Options**: Full range of speaker IDs with unique characteristics
+- **Consistent Voices**: Random seed selection ensures reproducible results
+- **Voice Presets**: Automatically save and recall successful voice settings
+- **Local Processing**: All generation happens on your Mac
 
 ## Requirements
 
 - Mac with Apple Silicon (M1/M2/M3)
-- Python 3.12+
+- Python 3.10+
 - Web browser
 
-## Installation
+## Acknowledgements
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/diyrl/sesame-voice.git
-   cd sesame-voice
-   ```
-
-2. Install the package and dependencies:
-   ```bash
-   # Using uv (recommended)
-   uv add git+https://github.com/senstella/csm-mlx
-   
-   # Or using pip
-   pip install git+https://github.com/senstella/csm-mlx
-   ```
-
-3. Install additional requirements:
-   ```bash
-   pip install torch torchaudio numpy audiofile flask
-   ```
-
-## Usage
-
-1. Start the web server:
-   ```bash
-   ./run_webapp.sh
-   ```
-
-2. Open your browser and navigate to:
-   ```
-   http://localhost:8080
-   ```
-
-3. Enter your text, select a voice, adjust parameters, and click "Generate Speech"
-
-4. Listen to the generated speech directly in the browser or download the audio file
-
-## Voice Options
-
-The application provides several voice options:
-
-- **Natural Male & Female** - The most human-like voices
-- **Standard Neutral** - A balanced, neutral voice
-- **Warm Voice** - A warmer, friendlier tone
-- **Bright Voice** - A more energetic, upbeat voice
-- **Additional experimental voices** - For more variety
-
-## Adjustable Parameters
-
-- **Expressiveness** - Controls the variation in speech (temperature)
-- **Voice Clarity** - Adjusts the token filtering (minimum probability)
-- **Max Duration** - Sets the maximum length of generated audio
-
-## Management Scripts
-
-The application includes several helpful scripts:
-
-- `run_webapp.sh` - Starts the web server
-- `test_server.sh` - Tests if the server is running correctly
-- `reset_audio.sh` - Clears all generated audio files
-
-## How It Works
-
-The application uses the CSM model, which is a neural speech synthesis model:
-
-1. Text is tokenized and processed by the CSM model
-2. The model generates audio tokens representing the speech
-3. These tokens are converted to audio waveforms
-4. The audio is played in your browser or saved as a WAV file
-
-All processing happens locally on your Mac, using the Apple Neural Engine through MLX.
-
-## License
-
-Apache 2.0 (following the original license of CSM)
+- [csm-mlx](https://github.com/senstella/csm-mlx) - CSM implementation for Apple Silicon
+- [MLX](https://github.com/ml-explore/mlx) - ML framework for Apple Silicon
